@@ -1,0 +1,101 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-serif: "Cormorant Garamond", "Georgia", serif;
+  --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
+  --font-hand: "Caveat", cursive;
+
+  --color-ivory: #fff9f2;
+  --color-blush: #f6dde2;
+  --color-rose: #c86b78;
+  --color-rosedeep: #8e3f50;
+  --color-leaf: #657a63;
+  --color-leafdeep: #344936;
+
+  --color-canvas: #fff9f2;
+  --color-canvas-deep: #fbf1e4;
+  --color-card: #fffdf8;
+  --color-ink: #292523;
+  --color-inksoft: #8a7d73;
+  --color-line: #eadfce;
+  --color-line-soft: #f2e9da;
+  --color-accent: #c86b78;
+  --color-accentsoft: #f6dde2;
+  --color-accentdeep: #8e3f50;
+  --color-sage: #657a63;
+  --color-sagedeep: #344936;
+
+  --shadow-petal: 0 18px 50px -18px rgb(142 63 80 / 0.28);
+  --shadow-card: 0 12px 40px -14px rgb(41 37 35 / 0.16);
+
+  --animate-sway: sway 7s ease-in-out infinite;
+  --animate-breathe: breathe 9s ease-in-out infinite;
+}
+
+.dark {
+  --color-canvas: #121a13;
+  --color-canvas-deep: #0d130e;
+  --color-card: #1b271d;
+  --color-ink: #efe6d7;
+  --color-inksoft: #9aa294;
+  --color-line: #2e3b2c;
+  --color-line-soft: #26311f;
+  --color-accent: #cf8d99;
+  --color-accentsoft: #33202a;
+  --color-accentdeep: #e6b3bc;
+  --color-sage: #7e947e;
+  --color-sagedeep: #a9bfa7;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-canvas text-ink font-sans antialiased;
+    transition: background-color 700ms ease, color 700ms ease;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--color-accent) 28%, transparent);
+  }
+
+  button,
+  [role="button"] {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  :focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--color-accent) 60%, transparent);
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+}
+
+@keyframes sway {
+  0%,
+  100% {
+    transform: rotate(-2.2deg);
+  }
+  50% {
+    transform: rotate(2.4deg);
+  }
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-7px) scale(1.008);
+  }
+}
+
+.paper-grain {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+}
