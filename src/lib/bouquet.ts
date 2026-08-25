@@ -124,13 +124,95 @@ export function greeneryFor(count: number): GreenerySlot[] {
   return GREENERY_SLOTS.slice(0, n)
 }
 
+const FORMAT_BINARY = 2
+const STEMS_BITS = 3
+const STEMS_MASK = (1 << STEMS_BITS) - 1
+
 export function encodeBouquet(b: BouquetData): string {
-  const bytes = new TextEncoder().encode(JSON.stringify(b))
+  const seq = b.f.slice(0, MAX_STEMS)
+  const name = new TextEncoder().encode(b.n.slice(0, 60))
+  const msg = new TextEncoder().encode(b.m.slice(0, 400))
+  const stemBytes = Math.ceil((seq.length * STEMS_BITS) / 8)
+
+  const out = new Uint8Array(4 + name.length + 2 + msg.length + stemBytes)
+  let o = 0
+  out[o++] = FORMAT_BINARY
+  out[o++] = b.w
+  out[o++] = seq.length
+  out[o++] = name.length
+  out.set(name, o)
+  o += name.length
+  out[o++] = (msg.length >> 8) & 255
+  out[o++] = msg.length & 255
+  out.set(msg, o)
+  o += msg.length
+
+  let acc = 0
+  let bits = 0
+  for (const t of seq) {
+    acc = (acc << STEMS_BITS) | t
+    bits += STEMS_BITS
+    if (bits >= 8) {
+      bits -= 8
+      out[o++] = (acc >> bits) & 255
+    }
+  }
+  if (bits > 0) out[o] = (acc << (8 - bits)) & 255
+
   let bin = ''
-  bytes.forEach((byte) => {
+  out.forEach((byte) => {
     bin += String.fromCharCode(byte)
   })
   return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
+function decodeBinary(bytes: Uint8Array): BouquetData | null {
+  try {
+    if (bytes[0] !== FORMAT_BINARY || bytes.length < 6) return null
+    const w = bytes[1]
+    if (w < 0 || w >= WRAP_STYLES.length) return null
+    const count = bytes[2]
+    if (count < 1 || count > MAX_STEMS) return null
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+
+    const nameLen = bytes[3]
+    let o = 4
+    if (o + nameLen + 2 > bytes.length) return null
+    const n = new TextDecoder().decode(bytes.subarray(o, o + nameLen))
+    o += nameLen
+
+    const msgLen = view.getUint16(o)
+    o += 2
+    if (o + msgLen > bytes.length) return null
+    const m = new TextDecoder().decode(bytes.subarray(o, o + msgLen))
+    o += msgLen
+
+    const f: number[] = []
+    let acc = 0
+    let bits = 0
+    for (let i = o; i < bytes.length && f.length < count; i++) {
+      acc = (acc << 8) | bytes[i]
+      bits += 8
+      while (bits >= STEMS_BITS && f.length < count) {
+        bits -= STEMS_BITS
+        f.push((acc >> bits) & STEMS_MASK)
+      }
+    }
+    if (!isValidSequence(f)) return null
+    return { v: 1, n, m, w, f }
+  } catch {
+    return null
+  }
+}
+
+function decodeLegacy(bytes: Uint8Array): BouquetData | null {
+  try {
+    const data = JSON.parse(new TextDecoder().decode(bytes)) as BouquetData
+    if (data.v !== 1 || typeof data.w !== 'number' || !isValidSequence(data.f)) return null
+    return data
+  } catch {
+    return null
+  }
 }
 
 export function decodeBouquet(s: string): BouquetData | null {
@@ -139,9 +221,8 @@ export function decodeBouquet(s: string): BouquetData | null {
     while (b64.length % 4) b64 += '='
     const bin = atob(b64)
     const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0))
-    const data = JSON.parse(new TextDecoder().decode(bytes)) as BouquetData
-    if (data.v !== 1 || typeof data.w !== 'number' || !isValidSequence(data.f)) return null
-    return data
+    if (bytes.length === 0) return null
+    return bytes[0] === FORMAT_BINARY ? decodeBinary(bytes) : decodeLegacy(bytes)
   } catch {
     return null
   }

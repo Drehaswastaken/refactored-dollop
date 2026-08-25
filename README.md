@@ -84,15 +84,19 @@ src/
 
 ## How Sharing Works
 
-A bouquet is serialized as JSON, base64url-encoded, and placed in the URL hash:
+A bouquet is packed into a compact binary format and base64url-encoded into
+the URL hash:
 
 ```
-{ v: 1, n: "Maya", m: "For you, because…", w: 1, f: [0,1,6,0,3,1,6,4,0,1] }
+[version][wrap][stemCount][nameLen][name…][msgLen×2][message…][stems: 3 bits each]
 ```
 
-- `f` is the stem sequence — flower type indices mapped to hand-authored
-  arrangement slots (center-out, depth-sorted)
+- Stems are 3-bit flower-type indices mapped to hand-authored arrangement slots
+  (center-out, depth-sorted)
+- A typical link is ~100 characters (minimum ~12); the note text is the only
+  part that grows the link
 - Links are self-contained and permanent: no server can lose them
+- Pre-v2 JSON links still decode (legacy fallback)
 - Corrupt or truncated links fall back to a gentle "wilted bouquet" screen
 
 ## Design Notes
