@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:api": "node scripts/test-api.mjs"
   },
   "dependencies": {
     "framer-motion": "^12.15.0",

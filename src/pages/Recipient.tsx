@@ -1,20 +1,49 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { decodeBouquet, flowersFromSequence, wrapStyleFor } from '../lib/bouquet'
+import { decodeBouquet, flowersFromSequence, isShortId, wrapStyleFor, type BouquetData } from '../lib/bouquet'
+import { fetchSharedBouquet } from '../lib/shareApi'
 import { Bloom } from '../components/flowers'
 import { Bouquet } from '../components/Bouquet'
 import { NoteCard } from '../components/NoteCard'
 import { Button } from '../components/ui'
+
+type LoadState = { tag: 'pending' } | { tag: 'ready'; data: BouquetData | null }
+
+function useSharedBouquet(slug: string): { pending: boolean; data: BouquetData | null } {
+  const shortMode = useMemo(() => isShortId(slug), [slug])
+  const [state, setState] = useState<LoadState>(() =>
+    shortMode ? { tag: 'pending' } : { tag: 'ready', data: decodeBouquet(slug) },
+  )
+
+  useEffect(() => {
+    if (!shortMode) {
+      setState({ tag: 'ready', data: decodeBouquet(slug) })
+      return
+    }
+    setState({ tag: 'pending' })
+    let alive = true
+    void fetchSharedBouquet(slug).then((data) => {
+      if (alive) setState({ tag: 'ready', data })
+    })
+    return () => {
+      alive = false
+    }
+  }, [slug, shortMode])
+
+  return state.tag === 'pending' ? { pending: true, data: null } : { pending: false, data: state.data }
+}
 
 export function Recipient() {
   const { data: encoded } = useParams()
   const navigate = useNavigate()
   const [phase, setPhase] = useState<'sealed' | 'growing' | 'revealed'>('sealed')
 
-  const data = useMemo(() => decodeBouquet(encoded ?? ''), [encoded])
+  const slug = encoded ?? ''
+  const { pending, data } = useSharedBouquet(slug)
   const flowers = useMemo(() => (data ? flowersFromSequence(data.f) : []), [data])
 
+  if (pending) return <Unpacking />
   if (!data) return <Wilted />
 
   const open = () => {
@@ -120,6 +149,23 @@ export function Recipient() {
           what is this?
         </Link>
       )}
+    </div>
+  )
+}
+
+function Unpacking() {
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center px-6 text-center">
+      <motion.div
+        animate={{ scale: [1, 1.07, 1], opacity: [0.7, 1, 0.7] }}
+        transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
+        className="flex flex-col items-center"
+      >
+        <Bloom type="tulip" size={42} className="opacity-80" />
+      </motion.div>
+      <p className="mt-5 font-serif text-xl italic leading-snug text-inksoft">
+        Gathering your bouquet&hellip;
+      </p>
     </div>
   )
 }

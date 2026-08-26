@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { bouquetUrl, decodeBouquet, flowersFromSequence, wrapStyleFor } from '../lib/bouquet'
+import { bouquetUrl, decodeBouquet, flowersFromSequence, shortBouquetUrl, wrapStyleFor } from '../lib/bouquet'
+import { createShortLink } from '../lib/shareApi'
 import { Bloom } from '../components/flowers'
 import { Bouquet } from '../components/Bouquet'
 import { NoteCard } from '../components/NoteCard'
@@ -36,7 +37,24 @@ export function Share() {
 
   const data = useMemo(() => decodeBouquet(params.get('s') ?? ''), [params])
 
-  const url = useMemo(() => (data ? bouquetUrl(data) : ''), [data])
+  type LinkState = { kind: 'creating' } | { kind: 'ready'; url: string }
+  const [link, setLink] = useState<LinkState>({ kind: 'creating' })
+
+  useEffect(() => {
+    if (!data) return
+    let cancelled = false
+    const ctrl = new AbortController()
+    void createShortLink(data, ctrl.signal).then((id) => {
+      if (!cancelled) setLink({ kind: 'ready', url: id ? shortBouquetUrl(id) : bouquetUrl(data) })
+    })
+    return () => {
+      cancelled = true
+      ctrl.abort()
+    }
+  }, [data])
+
+  const ready = link.kind === 'ready'
+  const url = link.kind === 'ready' ? link.url : ''
   const flowers = useMemo(() => (data ? flowersFromSequence(data.f) : []), [data])
 
   if (!data) return <Navigate to="/create" replace />
@@ -96,20 +114,33 @@ export function Share() {
         </p>
         <button
           onClick={() => void copy()}
-          className="group mt-2 flex w-full items-center gap-2 rounded-xl border border-line bg-canvas px-3.5 py-2.5 text-left transition-colors hover:border-accent/50"
+          disabled={!ready}
+          className="group mt-2 flex w-full items-center gap-2 rounded-xl border border-line bg-canvas px-3.5 py-2.5 text-left transition-colors hover:border-accent/50 disabled:pointer-events-none"
           title="Copy to clipboard"
         >
-          <span className="truncate font-mono text-xs text-inksoft group-hover:text-ink">{url}</span>
-          <span className={`ml-auto shrink-0 text-xs ${copied ? 'text-sage' : 'text-accent'}`}>
-            {copied ? 'Copied ♡' : 'Copy'}
-          </span>
+          {ready ? (
+            <>
+              <span className="truncate font-mono text-xs text-inksoft group-hover:text-ink">{url}</span>
+              <span className={`ml-auto shrink-0 text-xs ${copied ? 'text-sage' : 'text-accent'}`}>
+                {copied ? 'Copied ♡' : 'Copy'}
+              </span>
+            </>
+          ) : (
+            <motion.span
+              animate={{ opacity: [0.35, 1, 0.35] }}
+              transition={{ duration: 1.4, repeat: Infinity }}
+              className="text-xs text-inksoft"
+            >
+              Tying the ribbon&hellip;
+            </motion.span>
+          )}
         </button>
 
         <div className="mt-4 flex flex-col gap-2.5 sm:flex-row">
-          <Button onClick={() => void copy()} className="flex-1">
+          <Button onClick={() => void copy()} disabled={!ready} className="flex-1">
             {copied ? 'Copied ♡' : 'Copy Bouquet Link'}
           </Button>
-          <Button variant="ghost" onClick={() => void share()} className="flex-1">
+          <Button variant="ghost" onClick={() => void share()} disabled={!ready} className="flex-1">
             Share
           </Button>
         </div>

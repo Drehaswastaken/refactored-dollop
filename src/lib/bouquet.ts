@@ -232,6 +232,15 @@ export function bouquetUrl(data: BouquetData): string {
   return `${location.origin}${location.pathname}#/b/${encodeBouquet(data)}`
 }
 
+/** Short IDs are generated server-side; inline payloads are always longer. */
+export function isShortId(s: string): boolean {
+  return /^[A-Za-z0-9_-]{4,11}$/.test(s)
+}
+
+export function shortBouquetUrl(id: string): string {
+  return `${location.origin}${location.pathname}#/b/${id}`
+}
+
 export function wrapStyleFor(w: number): WrapStyle {
   return WRAP_STYLES[w] ?? 'classic'
 }

@@ -16,8 +16,9 @@ Built as a keepsake, not a web form.
   counts (6–15 stems), 4 wrapping styles (Classic, Romantic, Wildflower, Elegant)
 - **7 hand-crafted SVG flower species** — Rose, Tulip, Daisy, Peony, Lavender,
   Ranunculus, Sunflower — with eucalyptus greenery and layered depth
-- **Shareable links, no backend** — the entire bouquet (flowers, counts, wrap,
-  recipient name, note) is encoded into the URL
+- **Shareable links** — every bouquet gets a short link (`/b/x7Kp9a`-style) via a
+  tiny serverless API; without storage configured it falls back to fully
+  self-contained encoded links so sharing never breaks
 - **Recipient experience** — an interactive story: the bouquet grows onto the
   screen, then the note card fades in
 - **Night-garden dark mode** — a moonlit version, not a color inversion
@@ -32,8 +33,9 @@ Built as a keepsake, not a web form.
 | Styling | Tailwind CSS v4 (design tokens via `@theme`) |
 | Animation | Framer Motion |
 | Routing | React Router (hash-based — works on any static host) |
+| Link service | Vercel Function + Upstash-compatible Redis REST (optional) |
 
-No database. No server. No accounts.
+No accounts. The Redis store is optional — see below.
 
 ## Getting Started
 
@@ -49,23 +51,48 @@ npm run preview   # serve the production build
 `npm run build` outputs a fully static `dist/` folder.
 
 - **Vercel** — import the repo and deploy; `vercel.json` (SPA rewrite) and the
-  relative asset base are already configured
+  relative asset base are already configured. The `api/` folder deploys as
+  serverless functions automatically.
 - **Netlify / GitHub Pages / any static host** — upload or serve `dist/`
+  (short links need the API, so hosts without functions fall back to
+  self-contained links)
 
 Share links look like:
 
 ```
-https://your-site.vercel.app/#/b/eyJ2IjoxLCJuIjoi…
+https://your-site.vercel.app/#/b/x7Kp9a     ← with storage configured
+https://your-site.vercel.app/#/b/AgEJBk5h…  ← fallback (self-contained)
 ```
 
-Because routing is hash-based, they work everywhere — no server config required.
+### Enabling short links (one-time setup)
+
+The API stores bouquets in any Upstash-compatible Redis REST endpoint:
+
+1. Create a free database at [upstash.com](https://upstash.com) **or** add
+   **Vercel KV / Marketplace Redis** from your Vercel project's *Storage* tab
+2. Set these environment variables on the Vercel project (Marketplace integrations
+   inject them for you):
+
+   | Variable | Source |
+   |---|---|
+   | `KV_REST_API_URL` + `KV_REST_API_TOKEN` | Vercel Marketplace KV |
+   | `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` | Direct Upstash account |
+
+3. Redeploy
+
+Without those variables everything still works — the Share page simply produces
+the longer self-contained links instead.
 
 ## Project Structure
 
 ```
+api/
+  bouquet.ts            POST /api/bouquet (create) · GET ?id= (fetch)
+  _store.ts             Redis REST client, validation, IDs, rate limit
 src/
   lib/
-    bouquet.ts            types, URL codec, arrangement slots, stem distribution
+    bouquet.ts          types, URL codec, arrangement slots, stem distribution
+    shareApi.ts         client helpers for the short-link service
   components/
     flowers/index.tsx     7 SVG species + greenery + leaves (pure <g> art groups)
     Bouquet.tsx           layered renderer: stems, greenery, blooms, wrapper
@@ -84,8 +111,15 @@ src/
 
 ## How Sharing Works
 
-A bouquet is packed into a compact binary format and base64url-encoded into
-the URL hash:
+**Short links (default when storage is configured).** On the Share page the
+bouquet is POSTed to `/api/bouquet`, validated, stored in Redis under a random
+7-character ID, and the recipient link becomes `/#/b/<id>`. Opening a short
+link fetches the bouquet from `GET /api/bouquet?id=<id>`. Entries expire after
+one year but the TTL refreshes on every open, so bouquets that are revisited
+stay alive. Creation is rate-limited per IP to protect the free tier.
+
+**Self-contained links (fallback / legacy).** The bouquet is packed into a
+compact binary format and base64url-encoded into the URL hash:
 
 ```
 [version][wrap][stemCount][nameLen][name…][msgLen×2][message…][stems: 3 bits each]
@@ -93,11 +127,11 @@ the URL hash:
 
 - Stems are 3-bit flower-type indices mapped to hand-authored arrangement slots
   (center-out, depth-sorted)
-- A typical link is ~100 characters (minimum ~12); the note text is the only
-  part that grows the link
-- Links are self-contained and permanent: no server can lose them
 - Pre-v2 JSON links still decode (legacy fallback)
 - Corrupt or truncated links fall back to a gentle "wilted bouquet" screen
+
+A slug of ≤11 characters is treated as a server-side short ID; anything longer
+is decoded inline, so both styles coexist transparently.
 
 ## Design Notes
 
