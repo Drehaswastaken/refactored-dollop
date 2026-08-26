@@ -1,4 +1,4 @@
-# DigiBouquet 🌷
+# **Bouquetly** 🌷
 
 **Flowers, but make them digital.**
 
